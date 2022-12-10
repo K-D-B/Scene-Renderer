@@ -45,6 +45,9 @@ public:
 	void init();
 	void render(const std::shared_ptr<RenderScene>& scene);
 
+	//add a tool function to pass the UBO and a cascaded levels from shadow pass to deferred pass.
+	void pass_data();
+
 	std::shared_ptr<Shader> getShader(ShaderType type);
 
 private:
@@ -55,7 +58,6 @@ private:
 	void preparePointLightData(const std::shared_ptr<RenderScene>& renderScene);
 	void prepareDirectionLightData(const std::shared_ptr<RenderScene>& renderScene);
 	void prepareCompData(const std::shared_ptr<RenderScene>& scene);
-
 	void initRenderPass();
 	void initVPbuffer();
 	void initPointLightBuffer();
