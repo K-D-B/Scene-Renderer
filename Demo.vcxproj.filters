@@ -42,6 +42,9 @@
     <Filter Include="src\PT\material">
       <UniqueIdentifier>{0d3f5b12-c8d3-4a98-8b8c-d9f9654f9643}</UniqueIdentifier>
     </Filter>
+    <Filter Include="libdds">
+      <UniqueIdentifier>{6053c5ab-ccd1-409b-a627-8229e5a47052}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="include\imgui\imgui.cpp">
@@ -212,6 +215,15 @@
     <ClCompile Include="src\glad.c">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="include\libdds\libdds.cpp">
+      <Filter>libdds</Filter>
+    </ClCompile>
+    <ClCompile Include="include\libdds\libdds_opengl.cpp">
+      <Filter>libdds</Filter>
+    </ClCompile>
+    <ClCompile Include="src\component\Ocean.cpp">
+      <Filter>src\component</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\GUI.h">
@@ -376,6 +388,15 @@
     <ClInclude Include="src\component\TerrainComponent.h">
       <Filter>src\component</Filter>
     </ClInclude>
+    <ClInclude Include="include\libdds\dds_types.h">
+      <Filter>libdds</Filter>
+    </ClInclude>
+    <ClInclude Include="include\libdds\libdds.h">
+      <Filter>libdds</Filter>
+    </ClInclude>
+    <ClInclude Include="include\libdds\libdds_opengl.h">
+      <Filter>libdds</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="src\shader\hdr.fs" />
@@ -389,5 +410,8 @@
     <None Include="src\shader\test.fs" />
     <None Include="src\shader\test.vs" />
     <None Include="src\shader\water.fs" />
+    <ClInclude Include="src\component\Ocean.h">
+      <Filter>src\component</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

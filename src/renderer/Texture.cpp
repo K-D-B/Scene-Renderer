@@ -1,5 +1,7 @@
 #include<glad/glad.h>
 #include"Texture.h"
+#include<libdds/libdds_opengl.h>
+#include<assert.h>
 #define STB_IMAGE_IMPLEMENTATION
 
 Texture::Texture() {
@@ -9,6 +11,7 @@ Texture::Texture() {
 	id = 0;
 	//pbo = 0;
 	data = nullptr;
+	num_mipmaps = 0;
 }
 
 Texture::~Texture() {
@@ -31,32 +34,42 @@ std::shared_ptr<Texture> Texture::loadFromFileAsync(const std::string& filename,
 	std::shared_ptr<Texture> tex = std::make_shared<Texture>(); 
 	tex->name = filename;
 
-	stbi_set_flip_vertically_on_load(true);
-	unsigned char* data = stbi_load((filename).c_str(), &tex->width, &tex->height, &tex->channels, desired_channels);
-	if (data)
-	{
-		GLenum format;
-		switch (tex->channels)
-		{
-		case 1:
-			format = GL_RED;
-			break;
-		case 3:
-			format = GL_RGB;
-			break;
-		case 4:
-			format = GL_RGBA;
-			break;
-		default:
-			break;
-		}
-		tex->format = format;
-		tex->internalformat = format;
-		tex->data = data;
+	// ext 
+	auto ext_pos = filename.find_last_of('.');
+	auto ext = filename.substr(ext_pos + 1);
+	if (ext == "dds") {
+		// dxt format
+		ddsGL_load(filename.c_str(), tex);
 	}
-	else
-	{
-		std::cout << "Failed to load " <<filename<< std::endl;
+	else {
+		// ext: png,jpg,bmp,...
+		stbi_set_flip_vertically_on_load(true);
+		unsigned char* data = stbi_load((filename).c_str(), &tex->width, &tex->height, &tex->channels, desired_channels);
+		if (data)
+		{
+			GLenum format;
+			switch (tex->channels)
+			{
+			case 1:
+				format = GL_RED;
+				break;
+			case 3:
+				format = GL_RGB;
+				break;
+			case 4:
+				format = GL_RGBA;
+				break;
+			default:
+				break;
+			}
+			tex->format = format;
+			tex->internalformat = format;
+			tex->data = data;
+		}
+		else
+		{
+			std::cout << "Failed to load " << filename << std::endl;
+		}
 	}
 
 	return tex; 
@@ -134,7 +147,7 @@ std::shared_ptr<Texture> Texture::genTexture(unsigned int internalformat,unsigne
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	unsigned int dType; 
+	unsigned int dType = GL_UNSIGNED_BYTE;
 	switch (internalformat)
 	{
 	case GL_RGBA32F:
@@ -147,7 +160,7 @@ std::shared_ptr<Texture> Texture::genTexture(unsigned int internalformat,unsigne
 		dType = GL_UNSIGNED_BYTE;
 		break;
 	case GL_RGB:
-		dType = GL_UNSIGNED_BYTE;
+		dType = GL_FLOAT;
 		break;
 	case GL_RED:
 		dType = GL_UNSIGNED_BYTE;
@@ -187,6 +200,9 @@ std::shared_ptr<Texture> Texture::genTextureAsync(unsigned int DataType, unsigne
 }
 
 std::shared_ptr<Texture> Texture::genCubeMap(GLenum format, int width,int height) {
+	//if (id)
+		//return shared_from_this();
+	assert(id == 0);
 	glGenTextures(1, &id);
 	glBindTexture(GL_TEXTURE_CUBE_MAP, id);
 	for (int i = 0; i < 6; i++) {
@@ -203,8 +219,9 @@ std::shared_ptr<Texture> Texture::genCubeMap(GLenum format, int width,int height
 
 std::shared_ptr<Texture> Texture::genTextureArray(GLenum internalformat, GLenum format, GLenum type, int width, int height, int mipmap_level,int layers)
 {
-	if (this->id)
-		return shared_from_this();
+	//if (this->id)
+		//return shared_from_this();
+	assert(id == 0);
 	glGenTextures(1, &this->id);
 	glBindTexture(GL_TEXTURE_2D_ARRAY, this->id);
 	glTexImage3D(
@@ -223,5 +240,6 @@ std::shared_ptr<Texture> Texture::genTextureArray(GLenum internalformat, GLenum 
 
 void Texture::bind(unsigned int target, int binding) {
 	glActiveTexture(GL_TEXTURE0 + binding);
+	assert(id != 0);
 	glBindTexture(target, this->id);
 }

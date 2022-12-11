@@ -12,6 +12,7 @@ class HDRPass;
 class BasePass;
 class DepthPass;
 class DeferredPass;
+class RSMPass;
 class ShadowPass;
 
 enum class ShaderType {
@@ -35,6 +36,8 @@ enum class ShaderType {
 struct RenderSetting {
 	bool enableHDR;
 	bool useDefer;
+	bool enableShadow;
+	bool enableRSM;
 };
 
 class RenderManager {
@@ -57,11 +60,13 @@ private:
 	void prepareVPData(const std::shared_ptr<RenderScene>& renderScene);
 	void preparePointLightData(const std::shared_ptr<RenderScene>& renderScene);
 	void prepareDirectionLightData(const std::shared_ptr<RenderScene>& renderScene);
+	void prepareSpotLightData(const std::shared_ptr<RenderScene>& renderScene);
 	void prepareCompData(const std::shared_ptr<RenderScene>& scene);
 	void initRenderPass();
 	void initVPbuffer();
 	void initPointLightBuffer();
 	void initDirectionLightBuffer();
+	void initSpotLightBuffer();
 public:
 	// shaders
 	std::vector<std::shared_ptr<Shader>> m_shader;
@@ -73,6 +78,8 @@ public:
 	std::shared_ptr<HDRPass> hdrPass;
 	std::shared_ptr<BasePass> basePass;
 	std::shared_ptr<DepthPass> depthPass;
+	//std::shared_ptr<ShadowPass> shadowPass;
+	std::shared_ptr<RSMPass> rsmPass;
 
 	std::shared_ptr<ShadowPass> shadowPass;
 	std::shared_ptr<DeferredPass> deferredPass;
@@ -81,5 +88,6 @@ public:
 	std::shared_ptr<UniformBuffer> uniformVPBuffer;
 	std::shared_ptr<UniformBuffer> uniformPointLightBuffer;
 	std::shared_ptr<UniformBuffer> uniformDirectionLightBuffer;
+	std::shared_ptr<UniformBuffer> uniformSpotLightBuffer;
 };
 

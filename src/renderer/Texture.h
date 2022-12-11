@@ -30,5 +30,5 @@ public:
 	unsigned char* data;
 	unsigned int internalformat;
 	unsigned int format;
-
+	int num_mipmaps;
 };

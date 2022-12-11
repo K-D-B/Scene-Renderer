@@ -45,84 +45,128 @@ public:
 
 		ImGui::Begin("Info");
 
-		ImGui::Text("Scene loading");
-		if (ImGui::Button("Select Scene")) {
-			fileDialog.Open();
+		if (ImGui::CollapsingHeader("Scene loading")) {
+			if (ImGui::Button("Select Scene")) {
+				fileDialog.Open();
+			}
 		}
 		ImGui::Separator();
-		ImGui::Text("Camera");
-		if (scene->main_camera) {
-			// exposure
-			ImGui::SliderFloat("exposure",&(scene->main_camera->exposure),0.5f,6.0f);
+		if (ImGui::CollapsingHeader("Camera")) {
+			if (scene->main_camera) {
+				// exposure
+				ImGui::SliderFloat("exposure", &(scene->main_camera->exposure), 0.5f, 6.0f);
+			}
+		}
+
+		if (ImGui::CollapsingHeader("Rendering")) {
+			static bool enableShadow = renderManager->setting.enableShadow;
+			if (ImGui::Toggle("Enable Shadow", &enableShadow)) {
+				renderManager->setting.enableShadow = enableShadow;
+			}
 		}
 
 		ImGui::Separator();
-		ImGui::Text("Point Light");
-		auto& lights = scene->pointLights;
-		for (int i = 0; i < lights.size(); i++) {
-			char title[] = "Lighti Position";
-			title[5] = '0' + i;
-			ImGui::Text(title);
-			//auto& light = lights[0]; 
-			auto&& lightTrans = std::static_pointer_cast<Transform>(
-				lights[i]->gameObject->GetComponent("Transform"));
-			if(ImGui::SliderFloat3("Position", (float*)&lightTrans->position, -10.0f, 10.0f))
-				lights[i]->setDirtyFlag(true);
+		if (ImGui::CollapsingHeader("Point Light")) {
+			auto& lights = scene->pointLights;
+			for (int i = 0; i < lights.size(); i++) {
+				char title[] = "Lighti Position";
+				title[5] = '0' + i;
+				ImGui::Text(title);
+				//auto& light = lights[0]; 
+				auto&& lightTrans = std::static_pointer_cast<Transform>(
+					lights[i]->gameObject->GetComponent("Transform"));
+				if (ImGui::SliderFloat3("Position", (float*)&lightTrans->position, -10.0f, 10.0f))
+					lights[i]->setDirtyFlag(true);
+				//ImGui::Text("Light Position: (%f,%f,%f)", lightTrans->position.x, lightTrans->position.y, lightTrans->position.z);
+			}
 		}
-
-		//auto& dlights = scene->directionLights;
-		//for (int i = 0; i < dlights.size(); i++) {
-		//	char title[] = "Direction Lighti Position";
-		//	title[15] = '0' + 0;
-		//	ImGui::Text(title);
-		//	//auto& light = lights[0]; 
-		//	auto&& lightTrans = std::static_pointer_cast<Transform>(
-		//		dlights[i]->gameObject->GetComponent("Transform"));
-		//	ImGui::SliderFloat3("Position", (float*)&lightTrans->position, -10.0f, 1.0f);
-		//	dlights[i]->setDirtyFlag(true);
-		//}
+		if(ImGui::CollapsingHeader("Direction Light")){
+			auto& dlights = scene->directionLights;
+			for (int i = 0; i < dlights.size(); i++) {
+				char title[] = "Direction Lighti Position";
+				title[15] = '0' + 0;
+				ImGui::Text(title);
+				//auto& light = lights[0]; 
+				auto&& lightTrans = std::static_pointer_cast<Transform>(
+					dlights[i]->gameObject->GetComponent("Transform"));
+				auto&& lightData = dlights[i]->data;
+				//bool change1 = ImGui::SliderFloat3("Position", (float*)&lightTrans->position, -10.0f, 1.0f);
+				//bool change2 = ImGui::SliderFloat3("Direction", (float*)&lightData.direction, -1.0f, 1.0f);
+				ImGui::Text("Light Position: (%f,%f,%f)", lightTrans->position.x, lightTrans->position.y, lightTrans->position.z);
+				ImGui::Text("Light Direction: (%f,%f,%f)", lightData.direction.x, lightData.direction.y, lightData.direction.z);
+			
+				//if (change1 || change2) {
+					//dlights[i]->setDirtyFlag(true);
+				//}
+			}
+		}
+		if (ImGui::CollapsingHeader("Spot Light")) {
+			auto& slights = scene->spotLights;
+			for (int i = 0; i < slights.size(); i++) {
+				char title[] = "Spot Lighti Position";
+				title[15] = '0' + 0;
+				ImGui::Text(title);
+				//auto& light = lights[0]; 
+				auto&& lightTrans = std::static_pointer_cast<Transform>(
+					slights[i]->gameObject->GetComponent("Transform"));
+				auto&& lightData = slights[i]->data;
+				//bool change1 = ImGui::SliderFloat3("Position", (float*)&lightTrans->position, -10.0f, 1.0f);
+				//bool change2 = ImGui::SliderFloat3("Direction", (float*)&lightData.direction, -1.0f, 1.0f);
+				ImGui::Text("Light Position: (%f,%f,%f)", lightTrans->position.x, lightTrans->position.y, lightTrans->position.z);
+				ImGui::Text("Light Direction: (%f,%f,%f)", lightData.direction.x, lightData.direction.y, lightData.direction.z);
+			
+				ImGui::Text("CutOff: %f", lightData.cutOff);
+				ImGui::Text("OuterCutOff: %f", lightData.outerCutOff);
+				//if (change1 || change2) {
+					//slights[i]->setDirtyFlag(true);
+				//}
+			}
+		}
 
 		// sky 
 		if (scene->sky) {
 			ImGui::Separator();
-			ImGui::Text("Atmosphere");
-			auto& atmos = std::static_pointer_cast<Atmosphere>(scene->sky->GetComponent("Atmosphere"));
-			auto& atmosParam = atmos->atmosphere;
-			auto& sunAngle = atmos->sunAngle;
-			ImGui::SliderFloat("sunAngle", &sunAngle, -10.0f, 90.0f);
-			ImGui::SliderFloat("mie_g", &atmosParam.mie_g, 0.0f, 1.0f);
-			ImGui::SliderFloat3("rayleigh_scattering", (float*) & atmosParam.rayleigh_scattering, 0.0f, 1.0f);
+			if (ImGui::CollapsingHeader("Atmosphere")) {
+				auto& atmos = std::static_pointer_cast<Atmosphere>(scene->sky->GetComponent("Atmosphere"));
+				auto& atmosParam = atmos->atmosphere;
+				auto& sunAngle = atmos->sunAngle;
+				ImGui::SliderFloat("sunAngle", &sunAngle, -10.0f, 90.0f);
+				ImGui::SliderFloat("mie_g", &atmosParam.mie_g, 0.0f, 1.0f);
+				ImGui::SliderFloat3("rayleigh_scattering", (float*)&atmosParam.rayleigh_scattering, 0.0f, 1.0f);
+			}
 
 			//ImGui::SliderFloat("RayLeigh Scattering",0.0e-3,)
 		}
 		if (scene->terrain) {
 			ImGui::Separator();
-			ImGui::Text("Terrain");
-			auto& terrainComp = std::static_pointer_cast<TerrainComponent>(scene->terrain->GetComponent("TerrainComponent"));
-			static bool useWireFrame = false;
-			ImGui::Toggle("Wire Frame mode", &useWireFrame);
-			if (useWireFrame) {
-				terrainComp->setPolyMode(GL_LINE);
-			}
-			else {
-				terrainComp->setPolyMode(GL_FILL);
+			if (ImGui::CollapsingHeader("Terrain")) {
+				auto& terrainComp = std::static_pointer_cast<TerrainComponent>(scene->terrain->GetComponent("TerrainComponent"));
+				static bool useWireFrame = false;
+				ImGui::Toggle("Wire Frame mode", &useWireFrame);
+				if (useWireFrame) {
+					terrainComp->setPolyMode(GL_LINE);
+				}
+				else {
+					terrainComp->setPolyMode(GL_FILL);
+				}
 			}
 		}
 
 		// object list
 		ImGui::Separator();
-		ImGui::Text("Game Objects");
-		ImGui::BeginChild("Scrolling");
-		for (auto& object : scene->objects) {
-			ImGui::Text("%s",object->name.c_str());
+		if (ImGui::CollapsingHeader("Game Objects")) {
+			ImGui::BeginChild("Scrolling");
+			for (auto& object : scene->objects) {
+				ImGui::Text("%s", object->name.c_str());
+			}
+			if (scene->sky) {
+				ImGui::Text("sky");
+			}
+			if (scene->terrain) {
+				ImGui::Text("terrain");
+			}
+			ImGui::EndChild();
 		}
-		if (scene->sky) {
-			ImGui::Text("sky");
-		}
-		if (scene->terrain) {
-			ImGui::Text("terrain");
-		}
-		ImGui::EndChild();
 
 		ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
 		ImGui::End();

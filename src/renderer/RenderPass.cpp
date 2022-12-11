@@ -19,24 +19,26 @@
 #include"../component/transform.h"
 #include"../buffer/RenderBuffer.h"
 #include<memory>
+#include<random>
 
 extern std::unique_ptr<InputManager> inputManager;
 extern std::unique_ptr<RenderManager> renderManager;
 
 void BasePass::render(const std::shared_ptr<RenderScene>& scene,const std::shared_ptr<Shader>& outShader) {
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	glViewport(0, 0, inputManager->width, inputManager->height);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
+	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 
 	glCheckError();
-	for (auto object : scene->objects) {
+	for (auto& object : scene->objects) {
 		std::shared_ptr<MeshRenderer>&& renderer = std::static_pointer_cast<MeshRenderer>(object->GetComponent("MeshRenderer"));
 		if (renderer && renderer->shader) {
 			renderer->render(outShader);
 		}
 	}
 	glCheckError();
-	// render Terrain 
+	// render Terrain
 	std::shared_ptr<Terrain>& terrain = scene->terrain;
 	if (terrain) {
 		//terrain->shader->use();
@@ -86,10 +88,10 @@ void HDRPass::initPass(int width, int height) {
 	glBindFramebuffer(GL_FRAMEBUFFER, hdrFBO);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, colorBuffer, 0);
 	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, rboDepth);
-	
+
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-	
-	// set hdrShader 
+
+	// set hdrShader
 	hdrShader->setInt("hdrBuffer", 0);
 }
 
@@ -117,9 +119,12 @@ void HDRPass::render() {
 
 ShadowPass::ShadowPass() {
 	// TODO: init shadowShader: get from renderManager
-	auto shadowShader_dir =std::make_shared<Shader>("./src/shader/shadow/cascaded_shadow_depth.vs","./src/shader/shadow/cascaded_shadow_depth.fs","./src/shader/shadow/cascaded_shadow_depth.gs");
-	auto shaderShader_point = std::make_shared<Shader>("./src/shader/shadow/point_shadow_depth.vs", "./src/shader/shadow/point_shadow_depth.fs", "./src/shader/shadow/point_shadow_depth.gs");
-	
+	shadowShader_dir =std::make_shared<Shader>("./src/shader/shadow/cascaded_shadow_depth.vs","./src/shader/shadow/cascaded_shadow_depth.fs","./src/shader/shadow/cascaded_shadow_depth.gs");
+	//shadowShader_dir = std::make_shared<Shader>("./src/shader/shadow/direction.vs", "./src/shader/shadow/direction.fs");
+	shadowShader_dir->requireMat = false;
+	shadowShader_point = std::make_shared<Shader>("./src/shader/shadow/point_shadow_depth.vs", "./src/shader/shadow/point_shadow_depth.fs", "./src/shader/shadow/point_shadow_depth.gs");
+	shadowShader_point->requireMat = false;
+
 	// TODO: init framebuffer
 	//for creating multiple depth attachment for a fb is not allowed
 
@@ -127,12 +132,12 @@ ShadowPass::ShadowPass() {
 	glGenBuffers(1, &matrixUBO);
 	glBindBuffer(GL_UNIFORM_BUFFER, matrixUBO);
 
-	glBufferData(GL_UNIFORM_BUFFER, sizeof(glm::mat4)*10*cascaded_layers, nullptr, GL_STATIC_DRAW);  
+	glBufferData(GL_UNIFORM_BUFFER, sizeof(glm::mat4)*10*cascaded_layers, nullptr, GL_STATIC_DRAW);
 	//suppose 5 is the cascaded levels, 10 is the max num of directional lights
 	// this way is kinda undecent ,but convenient.
 
 
-	glBindBufferBase(GL_UNIFORM_BUFFER, 5, matrixUBO);  //5 is the binding point
+	//glBindBufferBase(GL_UNIFORM_BUFFER, 5, matrixUBO);  //5 is the binding point
 	glBindBuffer(GL_UNIFORM_BUFFER,0);
 }
 
@@ -143,9 +148,8 @@ ShadowPass::~ShadowPass()
 }
 
 void ShadowPass::render(const std::shared_ptr<RenderScene>& scene) {
-	// TODO: 
-	glViewport(0, 0, Light::SHADOW_WIDTH, Light::SHADOW_HEIGHT);
-	
+	// TODO:
+
 	// rendering shadow map
 	pointLightShadow(scene);
 	directionLightShadow(scene); //after evoke these 2 functions, the depth maps are restored in the lights' texes.
@@ -161,37 +165,33 @@ void ShadowPass::pointLightShadow(const std::shared_ptr<RenderScene>& scene) {
 		if (!light || !light->castShadow) {
 			continue;
 		}
-		if (!dirty)
+		if (dirty)
 			init_framebuffers(scene);
-
 
 		shadowShader_point->use();
 		const auto& current_framebuffer = frameBuffer_points.at(i);
 
-		current_framebuffer->bindBuffer();
-
-		if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
-		{
-			std::cerr << "ERROR::FRAMEBUFFER::FRAMEBUFFER IS NOT COMPLETE  OCCURS IN DIRECTIONAL LIGHTS!";
-			return;
-		}
 		glCheckError();
-		glEnable(GL_DEPTH_TEST);
-		glEnable(GL_CULL_FACE);
+		current_framebuffer->bindBuffer();
+		//glEnable(GL_DEPTH_TEST);
+		//glEnable(GL_CULL_FACE);
+		// glDisable(GL_CULL_FACE);
 
-		current_framebuffer->bindShadowTexture(light->shadowTex, GL_DEPTH_ATTACHMENT);
-		glDrawBuffer(GL_NONE);
-		glReadBuffer(GL_NONE);
-		
+		//current_framebuffer->bindShadowTexture(light->shadowTex, GL_DEPTH_ATTACHMENT);
+		//glDrawBuffer(GL_NONE);
+		//glReadBuffer(GL_NONE);
+		//
 		// start to render
 		float near_plane = scene->main_camera->zNear;
 		float far_plane = scene->main_camera->zFar;
-		
+
 		glm::mat4 proj = glm::perspective(glm::radians(90.0f), (float)cube_map_resolution / cube_map_resolution, near_plane, far_plane);
 
 		std::vector<glm::mat4> omnishadow_matrices;
-		for (unsigned i = 0; i < 6; i++)
-			omnishadow_matrices.emplace_back(std::get<1>(light->getLightTransform(i)));
+		for (unsigned i = 0; i < 6; i++) {
+			auto&& transforms = light->getLightTransform(i);
+			omnishadow_matrices.emplace_back(std::get<0>(transforms) * std::get<1>(transforms));
+		}
 
 		glViewport(0, 0, cube_map_resolution, cube_map_resolution);
 		glClear(GL_DEPTH_BUFFER_BIT);
@@ -208,82 +208,80 @@ void ShadowPass::pointLightShadow(const std::shared_ptr<RenderScene>& scene) {
 		lightPos=trans->position;
 		shadowShader_point->setFloat("far_plane", far_plane);
 		shadowShader_point->setVec3("lightPos", lightPos);
-
+		glCheckError();
 		for (auto& object : scene->objects)
 		{
 			std::shared_ptr<MeshRenderer>&& renderer = std::static_pointer_cast<MeshRenderer>(object->GetComponent("MeshRenderer"));
-			if (renderer) {
-				renderer->render(shadowShader_dir);
+			if (renderer && renderer->drawMode == GL_TRIANGLES) { // due to geometry shader, drawing points is not allowed;
+				renderer->render(shadowShader_point);
 			}
 		}
+		glCheckError();
 
 	}
+}
+
+void ShadowPass::simpleDirectionShadow(const std::shared_ptr<RenderScene>& scene) {
+	// pass
 }
 
 void ShadowPass::directionLightShadow(const std::shared_ptr<RenderScene>& scene) {
 	//TODO:
 	auto& dLights = scene->directionLights;
 	unsigned int num_direction_lights = dLights.size();
-	for (unsigned int i = 0; i < num_direction_lights;i++) 
+	for (unsigned int i = 0; i < num_direction_lights;i++)
 	{
 		const auto& light = dLights.at(i);
-		if (light || !light->castShadow) 
+		if (!light || !light->castShadow)
 		{
 			continue;
 		}
-		if (!dirty)
+		if (dirty)
 			init_framebuffers(scene);
 
 		const auto& current_framebuffer = frameBuffer_dirs.at(i);
 		current_framebuffer->bindBuffer();
-		if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
-		{
-			std::cerr << "ERROR::FRAMEBUFFER::FRAMEBUFFER IS NOT COMPLETE  OCCURS IN DIRECTIONAL LIGHTS!";
-			return;
-		}
-		glCheckError();
-		glEnable(GL_DEPTH_TEST);
-		
+		//glEnable(GL_DEPTH_TEST);
+
 		shadowShader_dir->use();
-		current_framebuffer->bindShadowTexture(light->shadowTex, GL_DEPTH_ATTACHMENT);
-		glDrawBuffer(GL_NONE);
-		glReadBuffer(GL_NONE);
+		//current_framebuffer->bindShadowTexture(light->shadowTex, GL_DEPTH_ATTACHMENT);
+		//glDrawBuffer(GL_NONE);
+		//glReadBuffer(GL_NONE);
 
 
 		//send the matrices into the uniform variable in shaders
 		std::vector<glm::mat4> light_matrices = get_stratified_matrices(scene, light);
 
-
 		//binding an UBO
+		glBindBuffer(GL_UNIFORM_BUFFER, matrixUBO);
 		for (unsigned j = 0; j < light_matrices.size(); j++)
 		{
 			// i-th light j-th level
-			glBufferSubData(GL_UNIFORM_BUFFER, (i*cascaded_layers+j)* sizeof(glm::mat4), sizeof(glm::mat4), &light_matrices[i]);
+			glBufferSubData(GL_UNIFORM_BUFFER, (i*cascaded_layers+j)* sizeof(glm::mat4), sizeof(glm::mat4), &light_matrices[j]);
 		}
-		glBindBuffer(GL_UNIFORM_BUFFER, 5);  // here we bind the matrices of all dir lights ,of all levels in the 5 binding points of uniform buffers
+		//glBindBuffer(GL_UNIFORM_BUFFER, 5);  // here we bind the matrices of all dir lights ,of all levels in the 5 binding points of uniform buffers
 		/*******/
 		
-		for (unsigned i = 0; i < light_matrices.size(); i++)
-		{
-			shadowShader_dir->setMat4("lightSpaceMatrices[" + std::to_string(i) + "]", light_matrices.at(i));
-		}
+		 for (unsigned i = 0; i < light_matrices.size(); i++)
+		 {
+		 	shadowShader_dir->setMat4("lightSpaceMatrices[" + std::to_string(i) + "]", light_matrices.at(i));
+		 }
 
 		glViewport(0, 0, this->cascaded_map_resolution, this->cascaded_map_resolution);
 		glClear(GL_DEPTH_BUFFER_BIT);
-		glCullFace(GL_FRONT);
+		// glCullFace(GL_FRONT);
 
 		//rendering
+		glCheckError();
 		for (auto object : scene->objects) {
 			std::shared_ptr<MeshRenderer>&& renderer = std::static_pointer_cast<MeshRenderer>(object->GetComponent("MeshRenderer"));
-			if (renderer) {
+			if (renderer && renderer->drawMode == GL_TRIANGLES) { // due to implemetation of geometry shader, drawing points is not allowed
 				renderer->render(shadowShader_dir);
 			}
 		}
 
-		glCullFace(GL_BACK);
+		// glCullFace(GL_BACK);
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
-
-
 	}
 }
 
@@ -315,7 +313,8 @@ glm::mat4 ShadowPass::get_stratified_matrix(const std::vector<glm::vec4>& points
 	}
 
 	center /= points.size();  // the center of the frustum in world space
-	auto light_view = glm::lookAt(center + light->data.direction, center, glm::vec3(0.0, 1.0, 0.0));
+	// TODO: make the direction light outside of the house.
+	auto light_view = glm::lookAt(center - 1.0f * light->data.direction, center, glm::vec3(0.0, 1.0, 0.0));
 
 	float minX = std::numeric_limits<float>::min();
 	float maxX = std::numeric_limits<float>::max();
@@ -357,7 +356,7 @@ std::vector<glm::mat4>ShadowPass:: get_stratified_matrices(const std::shared_ptr
 	shadow_limiter.at(1) = camera_far / 25.0;
 	shadow_limiter.at(2) = camera_far / 10.0;
 	shadow_limiter.at(3) = camera_far / 2.0;
-	
+
 	float near, far;
 	for (unsigned i = 0; i < 5; i++)
 	{
@@ -375,6 +374,7 @@ void ShadowPass::init_framebuffers(const std::shared_ptr<RenderScene>& scene)
 	unsigned int num_direction_lights = scene->directionLights.size();
 	unsigned int num_point_lights = scene->pointLights.size();
 
+	glCheckError();
 	for (const auto& light : scene->directionLights)
 	{
 		light->shadowTex->genTextureArray(
@@ -384,6 +384,9 @@ void ShadowPass::init_framebuffers(const std::shared_ptr<RenderScene>& scene)
 		auto new_framebuffer = std::make_shared<FrameBuffer>();
 		new_framebuffer->bindBuffer();
 		new_framebuffer->bindShadowTexture(light->shadowTex, GL_DEPTH_ATTACHMENT);
+		glDrawBuffer(GL_NONE);
+		glReadBuffer(GL_NONE);
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 		//add to vectors
 		frameBuffer_dirs.emplace_back(new_framebuffer);
 	}
@@ -393,10 +396,14 @@ void ShadowPass::init_framebuffers(const std::shared_ptr<RenderScene>& scene)
 		auto new_framebuffer = std::make_shared<FrameBuffer>();
 		new_framebuffer->bindBuffer();
 		new_framebuffer->bindShadowTexture(light->shadowTex, GL_DEPTH_ATTACHMENT);
+		glDrawBuffer(GL_NONE);
+		glReadBuffer(GL_NONE);
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 		//add to vectors
 		frameBuffer_points.emplace_back(new_framebuffer);
 	}
-	dirty = true;
+	glCheckError();
+	dirty = false;
 	//once we generate these framebuffers, we set dirty as true to avoid repeatedly do these procedures in every pass
 }
 
@@ -431,7 +438,7 @@ DepthPass::DepthPass() {
 }
 
 DepthPass::~DepthPass() {
-	
+
 }
 
 void DepthPass::render(const std::shared_ptr<RenderScene>& scene) {
@@ -462,7 +469,7 @@ void DepthPass::render(const std::shared_ptr<RenderScene>& scene) {
 	glCheckError();
 
 	glCullFace(GL_BACK);
-	for (auto object : scene->objects) {
+	for (auto& object : scene->objects) {
 		std::shared_ptr<MeshRenderer>&& renderer = std::static_pointer_cast<MeshRenderer>(object->GetComponent("MeshRenderer"));
 		if (renderer && renderer->shader) {
 			renderer->render(depthShader);
@@ -473,14 +480,14 @@ void DepthPass::render(const std::shared_ptr<RenderScene>& scene) {
 	glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
 	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);//black
 	glCullFace(GL_FRONT);
-	for (auto object : scene->objects) {
+	for (auto& object : scene->objects) {
 		std::shared_ptr<MeshRenderer>&& renderer = std::static_pointer_cast<MeshRenderer>(object->GetComponent("MeshRenderer"));
 		if (renderer && renderer->shader) {
 			renderer->render(depthShader);
 		}
 	}
 
-	// set shaders 
+	// set shaders
 	auto& sssShader = renderManager->getShader(ShaderType::PBR_SSS);
 	glActiveTexture(GL_TEXTURE18);
 	glBindTexture(GL_TEXTURE_2D, frontDepth->id);
@@ -488,7 +495,7 @@ void DepthPass::render(const std::shared_ptr<RenderScene>& scene) {
 	glBindTexture(GL_TEXTURE_2D, backDepth->id);
 
 	glCullFace(GL_BACK);
-	
+
 	sssShader->use();
 	sssShader->setInt("frontDepth", 18);
 	sssShader->setInt("backDepth", 19);
@@ -516,7 +523,7 @@ void DeferredPass::initShader() {
 void DeferredPass::initTextures() {
 	gBuffer = std::make_shared<FrameBuffer>();
 	postBuffer = std::make_shared<FrameBuffer>();
-	
+
 	rbo = std::make_shared<RenderBuffer>();
 	postRbo = std::make_shared<RenderBuffer>();
 
@@ -528,7 +535,7 @@ void DeferredPass::initTextures() {
 }
 
 DeferredPass::~DeferredPass() {
-	
+
 }
 
 void DeferredPass::renderGbuffer(const std::shared_ptr<RenderScene>& scene) {
@@ -538,7 +545,7 @@ void DeferredPass::renderGbuffer(const std::shared_ptr<RenderScene>& scene) {
 		gAlbedoSpec->genTexture(GL_RGBA16F, GL_RGBA, inputManager->width, inputManager->height);
 		gPBR->genTexture(GL_RGBA16F, GL_RGBA, inputManager->width, inputManager->height);
 		postTexture->genTexture(GL_RGBA16F, GL_RGBA, inputManager->width, inputManager->height);
-		
+
 		rbo->genBuffer(inputManager->width, inputManager->height);
 		postRbo->genBuffer(inputManager->width, inputManager->height);
 	}
@@ -557,9 +564,9 @@ void DeferredPass::renderGbuffer(const std::shared_ptr<RenderScene>& scene) {
 		if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
 			std::cout << "Framebuffer not complete!" << std::endl;
 		// finally check if framebuffer is complete
-		unsigned int attachments[] = { 
-			GL_COLOR_ATTACHMENT0, 
-			GL_COLOR_ATTACHMENT1, 
+		unsigned int attachments[] = {
+			GL_COLOR_ATTACHMENT0,
+			GL_COLOR_ATTACHMENT1,
 			GL_COLOR_ATTACHMENT2,
 			GL_COLOR_ATTACHMENT3
 		};
@@ -607,66 +614,74 @@ void DeferredPass::renderGbuffer(const std::shared_ptr<RenderScene>& scene) {
 
 void DeferredPass::render(const std::shared_ptr<RenderScene>& scene) {
 	// renderScene
-	//glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	//bindings
+	if (cascaded_matrix_UBO) {
+		//assert(cascaded_matrix_UBO != 0);
+		glBindBufferBase(GL_UNIFORM_BUFFER, 5, cascaded_matrix_UBO);
+	}
+
 	postBuffer->bindBuffer();
 	glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
+	glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
 
 	lightingShader->use();
 	// bind textures
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, gPosition->id);
 	glActiveTexture(GL_TEXTURE1);
 	glBindTexture(GL_TEXTURE_2D, gNormal->id);
 	glActiveTexture(GL_TEXTURE2);
 	glBindTexture(GL_TEXTURE_2D, gAlbedoSpec->id);
 	glActiveTexture(GL_TEXTURE3);
 	glBindTexture(GL_TEXTURE_2D, gPBR->id);
-	
-	unsigned base = 4;// already 4 texture units occupied
+	glActiveTexture(GL_TEXTURE4);
+	glBindTexture(GL_TEXTURE_2D, gPosition->id);
+	glCheckError();
 
-	unsigned i = 0;
-	for (i = 0; i < scene->directionLights.size();i++);
+	//int i = 0;
+	int base = 5;// already 4 texture units occupied
+	for (int i = 0; i < scene->directionLights.size();++i)
 	{
 		int texture_unit_index = i + base;
 		glActiveTexture(GL_TEXTURE0 + texture_unit_index);
 		glBindTexture(GL_TEXTURE_2D_ARRAY, scene->directionLights.at(i)->shadowTex->id);
 		lightingShader->setInt("shadow_maps[" + std::to_string(i) + "]", texture_unit_index);
 	}
+	glCheckError();
 
 	base += scene->directionLights.size();
-	for (i = 0; i < scene->pointLights.size(); i++)
+	for (int i = 0; i < scene->pointLights.size(); ++i)
 	{
 		int texture_unit_index = i + base;
 		glActiveTexture(GL_TEXTURE0 + texture_unit_index);
 		glBindTexture(GL_TEXTURE_CUBE_MAP, scene->pointLights.at(i)->shadowTex->id);
 		lightingShader->setInt("shadow_cubes[" + std::to_string(i) + "]", texture_unit_index);
 	}
+	glCheckError();
 
-	lightingShader->setInt("gPosition", 0);
+	lightingShader->setInt("gPosition", 4);
 	lightingShader->setInt("gNormal", 1);
 	lightingShader->setInt("gAlbedoSpec", 2);
 	lightingShader->setInt("gPBR", 3);
 
 	lightingShader->setFloat("far_plane", scene->main_camera->zFar);
 	lightingShader->setInt("cascaded_levels", 4);
-	
+
 	for (unsigned int i = 0; i < 4; i++)
 		lightingShader->setFloat("cascaded_distances[" + std::to_string(i) + "]", shadow_limiter[i]);
-	
-
-
+	glCheckError();
 
 	// set uniforms
 	if (scene->main_camera) {
-		lightingShader->setVec3("camPos", scene->main_camera->Position);	
+		//lightingShader->setVec3("camPos", scene->main_camera->Position);
 
 		lightingShader->setFloat("far_plane", scene->main_camera->zFar);
-		lightingShader->setInt("cascaded_levels", 4);
+		//lightingShader->setInt("cascaded_levels", 5);
 	}
+	glCheckError();
 
 	// render quad
 	renderQuad();
 
+	glCheckError();
 	// copy renderbuffer
 	glBindFramebuffer(GL_READ_FRAMEBUFFER, gBuffer->FBO);
 	//glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
@@ -675,11 +690,12 @@ void DeferredPass::render(const std::shared_ptr<RenderScene>& scene) {
 	int height = inputManager->height;
 	glBlitFramebuffer(0, 0, width, height,
 		0, 0, width, height, GL_DEPTH_BUFFER_BIT, GL_NEAREST);
+	glCheckError();
 
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	//glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	postBuffer->bindBuffer();
 
-	// forward rendering 
+	// forward rendering
 	for (auto& object : scene->objects) {
 		if (!object->isDeferred()) {
 			std::shared_ptr<MeshRenderer>&& renderer = std::static_pointer_cast<MeshRenderer>(object->GetComponent("MeshRenderer"));
@@ -700,11 +716,196 @@ void DeferredPass::postProcess(const std::shared_ptr<RenderScene>& scene) {
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, postTexture->id);
+	if(renderManager->setting.enableRSM)
+		glBindTexture(GL_TEXTURE_2D, renderManager->rsmPass->outTexture->id);
+	else 
+		glBindTexture(GL_TEXTURE_2D, postTexture->id);
 
 	postProcessShader->use();
 	postProcessShader->setFloat("exposure", scene->main_camera->exposure);
 	postProcessShader->setInt("hdrBuffer", 0);
 
 	renderQuad();
+}
+
+RSMPass::RSMPass() {
+	initShader();
+	initTextures();
+}
+
+RSMPass::~RSMPass() {
+
+}
+void RSMPass::initShader() {
+	RSMShader = std::make_shared<Shader>("./src/shader/rsm/lightSpace.vs", "./src/shader/rsm/lightSpace.fs");
+	RSMShader->requireMat = true;
+	indirectShader = std::make_shared<Shader>("./src/shader/rsm/rsm.vs", "./src/shader/rsm/rsm.fs");
+	RSMShader->requireMat = true;
+	//RSMShader->use();
+}
+
+GLuint RSMPass::createRandomTexture(int size) {
+	std::default_random_engine eng;
+	std::uniform_real_distribution<float> dist(0.0f, 1.0f);
+	eng.seed(std::time(0));
+	float PI = std::cos(-1.0f);
+	glm::vec3* randomData = new glm::vec3[size];
+	for (int i = 0; i < size; ++i) {
+		float r1 = dist(eng);
+		float r2 = dist(eng);
+		randomData[i].x = r1 * std::sin(2 * PI * r2);
+		randomData[i].y = r1 * std::cos(2 * PI * r2);
+		randomData[i].z = r1 * r1;
+	}
+	GLuint randomTexture;
+	glGenTextures(1, &randomTexture);
+	glBindTexture(GL_TEXTURE_2D, randomTexture);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, size, 1, 0, GL_RGB, GL_FLOAT, randomData);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+	delete[] randomData;
+	return randomTexture;
+}
+void RSMPass::initTextures() {
+	rsmFBO = std::make_shared<FrameBuffer>();
+	rsmBuffer = std::make_shared<FrameBuffer>();
+
+	depthMap = std::make_shared<Texture>();
+	normalMap = std::make_shared<Texture>();
+	worldPosMap = std::make_shared<Texture>();
+	fluxMap = std::make_shared<Texture>();
+	outTexture = std::make_shared<Texture>();
+	rbo = std::make_shared<RenderBuffer>();
+	randomMap = createRandomTexture();
+	depthMap->genTexture(GL_DEPTH_COMPONENT, GL_DEPTH_COMPONENT, RSM_WIDTH, RSM_HEIGHT);
+	normalMap->genTexture(GL_RGB32F, GL_RGB, RSM_WIDTH, RSM_HEIGHT);
+	worldPosMap->genTexture(GL_RGB32F, GL_RGB, RSM_WIDTH, RSM_HEIGHT);
+	fluxMap->genTexture(GL_RGB32F, GL_RGB, RSM_WIDTH, RSM_HEIGHT);
+}
+
+void RSMPass::renderGbuffer(const std::shared_ptr<RenderScene>& scene) {
+	if (rsmFBO->dirty) {
+		// set attachments
+		rsmFBO->dirty = false;
+
+		rsmFBO->bindTexture(depthMap, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D);
+		rsmFBO->bindTexture(normalMap, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D);
+		rsmFBO->bindTexture(worldPosMap, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D);
+		rsmFBO->bindTexture(fluxMap, GL_COLOR_ATTACHMENT2, GL_TEXTURE_2D);
+
+		rsmFBO->bindBuffer();
+		if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+			std::cout << "Framebuffer not complete!" << std::endl;
+		// finally check if framebuffer is complete
+		unsigned int attachments[] = {
+			GL_COLOR_ATTACHMENT0,
+			GL_COLOR_ATTACHMENT1,
+			GL_COLOR_ATTACHMENT2
+		};
+		glDrawBuffers(3, attachments);
+	}
+
+	rsmFBO->bindBuffer();
+	glViewport(0, 0, RSM_WIDTH, RSM_HEIGHT);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+
+	//TODO:set light uniform
+	auto& light = scene->spotLights[0];
+	auto trans = std::static_pointer_cast<Transform>(light->gameObject->GetComponent("Transform"));
+	glm::vec3 lightPos = trans->position;
+	glm::mat4 lightProjection = glm::perspective(glm::radians(100.0f), (float)RSM_WIDTH / (float)RSM_HEIGHT, light->near, light->far);
+	glm::mat4 lightView = glm::lookAt(lightPos, lightPos + light->data.direction, glm::vec3(0.0f, 1.0f, 0.0f));
+	glm::mat4 lightSpaceMatrix = lightProjection * lightView;
+	RSMShader->use();
+	RSMShader->setMat4("lightSpaceMatrix", lightSpaceMatrix);
+	RSMShader->setVec3("light.Position", lightPos);
+	RSMShader->setVec3("light.Color", light->data.color);
+	RSMShader->setVec3("light.Direction", light->data.direction);
+
+	for (int i = 0; i < scene->objects.size(); i++) {
+		auto& object = scene->objects[i];
+		//// only render deferred objects in gbuffer phase
+		//if (object->isDeferred()) {
+		std::shared_ptr<MeshRenderer>&& renderer = std::static_pointer_cast<MeshRenderer>(object->GetComponent("MeshRenderer"));
+		if (renderer && renderer->shader) {
+			renderer->render(RSMShader);
+		}
+		//}
+	}
+
+	//std::shared_ptr<Terrain>& terrain = scene->terrain;
+	//if (terrain) {
+	//	//terrain->shader->use();
+	//	glCheckError();
+	//	//auto& terrainComponent = std::static_pointer_cast<TerrainComponent>(terrain->GetComponent("TerrainComponent"));
+	//	//if (terrainComponent) {
+	//		//terrainComponent->render(terrainComponent->terrainGBuffer);
+	//	//}
+	//	terrain->render(nullptr);
+	//}
+	// no sky
+}
+
+
+void RSMPass::render(const std::shared_ptr<RenderScene>& scene) {
+	// post buffer
+	if (rsmBuffer->dirty) {
+		// set attachments
+		rsmBuffer->dirty = false;
+		outTexture->genTexture(GL_RGBA16F, GL_RGBA, inputManager->width, inputManager->height);
+		rsmBuffer->bindTexture(outTexture, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D);
+
+		rbo->genBuffer(inputManager->width, inputManager->height);
+		rsmBuffer->bindBuffer();
+		// - Attach buffers
+		glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, rbo->rbo);
+		if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+			std::cout << "Framebuffer not complete!" << std::endl;
+	}
+
+	rsmBuffer->bindBuffer();
+
+	//������
+	depthMap->bind(GL_TEXTURE_2D, 20);
+	normalMap->bind(GL_TEXTURE_2D, 21);
+	worldPosMap->bind(GL_TEXTURE_2D, 22);
+	fluxMap->bind(GL_TEXTURE_2D, 23);
+	renderManager->deferredPass->postTexture->bind(GL_TEXTURE_2D, 24);
+
+	glActiveTexture(GL_TEXTURE4);
+	glBindTexture(GL_TEXTURE_2D, randomMap);
+	//TODO: bind deffer postTexture -> 5
+
+	glViewport(0, 0, inputManager->width, inputManager->height);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+
+	//TODO:set light uniform
+	auto& light = scene->spotLights[0];
+	auto trans = std::static_pointer_cast<Transform>(light->gameObject->GetComponent("Transform"));
+	glm::vec3 lightPos = trans->position;
+	glm::mat4 lightProjection = glm::perspective(glm::radians(60.0f), (float)RSM_WIDTH / (float)RSM_HEIGHT, light->near, light->far);
+	glm::mat4 lightView = glm::lookAt(lightPos, lightPos + light->data.direction, glm::vec3(0.0f, 1.0f, 0.0f));
+	glm::mat4 lightSpaceMatrix = lightProjection * lightView;
+	indirectShader->use();
+	indirectShader->setMat4("lightSpaceMatrix", lightSpaceMatrix);
+	indirectShader->setInt("depthMap", 20);
+	indirectShader->setInt("normalMap", 21);
+	indirectShader->setInt("worldPosMap", 22);
+	indirectShader->setInt("fluxMap", 23);
+	indirectShader->setInt("inTexture", 24);
+	indirectShader->setInt("randomMap", 4);
+	indirectShader->setInt("sample_num", 64);
+	indirectShader->setFloat("sample_radius", 0.3);
+
+	for (int i = 0; i < scene->objects.size(); i++) {
+		auto& object = scene->objects[i];
+		std::shared_ptr<MeshRenderer>&& renderer = std::static_pointer_cast<MeshRenderer>(object->GetComponent("MeshRenderer"));
+		if (renderer && renderer->shader) {
+			renderer->render(indirectShader);
+		}
+	}
 }

@@ -2,6 +2,7 @@ build/
 dll/
 # lib/
 .vs/
+.history/
 .vscode/
 x64/
 .cache/
@@ -22,3 +23,11 @@ asset/model
 asset/pbr
 asset/skybox
 asset/tex
+asset/objects
+asset/
+package-lock.json
+package.json
+node_modules/
+*.js
+*.json
+*.rar
