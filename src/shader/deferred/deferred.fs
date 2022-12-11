@@ -143,7 +143,7 @@ float calculate_directional_shadow(vec3 fragPosWorldSpace,vec3 normal,int order)
     float bias=max(0.05*(1.0-dot(normal,directionLights[order].Direction)),0.05);
 
     //modify bias according to which frustum
-    float modify_factor;
+    float modify_factor=0.5f;
     if(layer==cascaded_levels)
         bias*=1/(far_plane*modify_factor);
     else

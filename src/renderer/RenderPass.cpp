@@ -132,7 +132,7 @@ ShadowPass::ShadowPass() {
 	// this way is kinda undecent ,but convenient.
 
 
-	glBindBufferBase(GL_UNIFORM_BUFFER, 0, matrixUBO);  //0 is the binding point
+	glBindBufferBase(GL_UNIFORM_BUFFER, 5, matrixUBO);  //5 is the binding point
 	glBindBuffer(GL_UNIFORM_BUFFER,0);
 }
 
@@ -511,6 +511,8 @@ void DeferredPass::initShader() {
 	postProcessShader->requireMat = false;
 }
 
+
+
 void DeferredPass::initTextures() {
 	gBuffer = std::make_shared<FrameBuffer>();
 	postBuffer = std::make_shared<FrameBuffer>();
@@ -620,14 +622,14 @@ void DeferredPass::render(const std::shared_ptr<RenderScene>& scene) {
 	glActiveTexture(GL_TEXTURE3);
 	glBindTexture(GL_TEXTURE_2D, gPBR->id);
 	
-	unsigned base = 3;// already 4 texture units occupied
+	unsigned base = 4;// already 4 texture units occupied
 
 	unsigned i = 0;
 	for (i = 0; i < scene->directionLights.size();i++);
 	{
 		int texture_unit_index = i + base;
 		glActiveTexture(GL_TEXTURE0 + texture_unit_index);
-		glBindTexture(GL_TEXTURE_2D, scene->directionLights.at(i)->shadowTex->id);
+		glBindTexture(GL_TEXTURE_2D_ARRAY, scene->directionLights.at(i)->shadowTex->id);
 		lightingShader->setInt("shadow_maps[" + std::to_string(i) + "]", texture_unit_index);
 	}
 
@@ -636,7 +638,7 @@ void DeferredPass::render(const std::shared_ptr<RenderScene>& scene) {
 	{
 		int texture_unit_index = i + base;
 		glActiveTexture(GL_TEXTURE0 + texture_unit_index);
-		glBindTexture(GL_TEXTURE_2D, scene->pointLights.at(i)->shadowTex->id);
+		glBindTexture(GL_TEXTURE_CUBE_MAP, scene->pointLights.at(i)->shadowTex->id);
 		lightingShader->setInt("shadow_cubes[" + std::to_string(i) + "]", texture_unit_index);
 	}
 
@@ -646,7 +648,7 @@ void DeferredPass::render(const std::shared_ptr<RenderScene>& scene) {
 	lightingShader->setInt("gPBR", 3);
 
 	lightingShader->setFloat("far_plane", scene->main_camera->zFar);
-	lightingShader->setInt("cascaded_levels", 5);
+	lightingShader->setInt("cascaded_levels", 4);
 	
 	for (unsigned int i = 0; i < 4; i++)
 		lightingShader->setFloat("cascaded_distances[" + std::to_string(i) + "]", shadow_limiter[i]);
@@ -659,7 +661,7 @@ void DeferredPass::render(const std::shared_ptr<RenderScene>& scene) {
 		lightingShader->setVec3("camPos", scene->main_camera->Position);	
 
 		lightingShader->setFloat("far_plane", scene->main_camera->zFar);
-		lightingShader->setInt("cascaded_levels", 5);
+		lightingShader->setInt("cascaded_levels", 4);
 	}
 
 	// render quad
