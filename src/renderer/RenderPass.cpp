@@ -30,19 +30,19 @@ void BasePass::render(const std::shared_ptr<RenderScene>& scene,const std::share
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 
-	glCheckError();
+	
 	for (auto& object : scene->objects) {
 		std::shared_ptr<MeshRenderer>&& renderer = std::static_pointer_cast<MeshRenderer>(object->GetComponent("MeshRenderer"));
 		if (renderer && renderer->shader) {
 			renderer->render(outShader);
 		}
 	}
-	glCheckError();
+	
 	// render Terrain
 	std::shared_ptr<Terrain>& terrain = scene->terrain;
 	if (terrain) {
 		//terrain->shader->use();
-		glCheckError();
+		
 		terrain->render(outShader);
 	}
 
@@ -171,7 +171,7 @@ void ShadowPass::pointLightShadow(const std::shared_ptr<RenderScene>& scene) {
 		shadowShader_point->use();
 		const auto& current_framebuffer = frameBuffer_points.at(i);
 
-		glCheckError();
+		
 		current_framebuffer->bindBuffer();
 		//glEnable(GL_DEPTH_TEST);
 		//glEnable(GL_CULL_FACE);
@@ -208,7 +208,7 @@ void ShadowPass::pointLightShadow(const std::shared_ptr<RenderScene>& scene) {
 		lightPos=trans->position;
 		shadowShader_point->setFloat("far_plane", far_plane);
 		shadowShader_point->setVec3("lightPos", lightPos);
-		glCheckError();
+		
 		for (auto& object : scene->objects)
 		{
 			std::shared_ptr<MeshRenderer>&& renderer = std::static_pointer_cast<MeshRenderer>(object->GetComponent("MeshRenderer"));
@@ -216,7 +216,7 @@ void ShadowPass::pointLightShadow(const std::shared_ptr<RenderScene>& scene) {
 				renderer->render(shadowShader_point);
 			}
 		}
-		glCheckError();
+		
 
 	}
 }
@@ -272,7 +272,7 @@ void ShadowPass::directionLightShadow(const std::shared_ptr<RenderScene>& scene)
 		// glCullFace(GL_FRONT);
 
 		//rendering
-		glCheckError();
+		
 		for (auto object : scene->objects) {
 			std::shared_ptr<MeshRenderer>&& renderer = std::static_pointer_cast<MeshRenderer>(object->GetComponent("MeshRenderer"));
 			if (renderer && renderer->drawMode == GL_TRIANGLES) { // due to implemetation of geometry shader, drawing points is not allowed
@@ -374,7 +374,7 @@ void ShadowPass::init_framebuffers(const std::shared_ptr<RenderScene>& scene)
 	unsigned int num_direction_lights = scene->directionLights.size();
 	unsigned int num_point_lights = scene->pointLights.size();
 
-	glCheckError();
+	
 	for (const auto& light : scene->directionLights)
 	{
 		light->shadowTex->genTextureArray(
@@ -402,7 +402,7 @@ void ShadowPass::init_framebuffers(const std::shared_ptr<RenderScene>& scene)
 		//add to vectors
 		frameBuffer_points.emplace_back(new_framebuffer);
 	}
-	glCheckError();
+	
 	dirty = false;
 	//once we generate these framebuffers, we set dirty as true to avoid repeatedly do these procedures in every pass
 }
@@ -452,7 +452,7 @@ void DepthPass::render(const std::shared_ptr<RenderScene>& scene) {
 			std::cout << "ERROR::FRAMEBUFFER:: Framebuffer is not complete!" << std::endl;
 		dirty = false;
 	}
-	glCheckError();
+	
 
 	//glm::mat4 projection_ = glm::perspective(glm::radians(scene->main_camera->Zoom),
 		//inputManager->width * 1.0f / inputManager->height,
@@ -466,7 +466,7 @@ void DepthPass::render(const std::shared_ptr<RenderScene>& scene) {
 	glViewport(0, 0, inputManager->width, inputManager->height);
 	glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
 	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);//black
-	glCheckError();
+	
 
 	glCullFace(GL_BACK);
 	for (auto& object : scene->objects) {
@@ -488,7 +488,7 @@ void DepthPass::render(const std::shared_ptr<RenderScene>& scene) {
 	}
 
 	// set shaders
-	auto& sssShader = renderManager->getShader(ShaderType::PBR_SSS);
+	auto&& sssShader = renderManager->getShader(ShaderType::PBR_SSS);
 	glActiveTexture(GL_TEXTURE18);
 	glBindTexture(GL_TEXTURE_2D, frontDepth->id);
 	glActiveTexture(GL_TEXTURE19);
@@ -602,7 +602,7 @@ void DeferredPass::renderGbuffer(const std::shared_ptr<RenderScene>& scene) {
 	std::shared_ptr<Terrain>& terrain = scene->terrain;
 	if (terrain) {
 		//terrain->shader->use();
-		glCheckError();
+		
 		//auto& terrainComponent = std::static_pointer_cast<TerrainComponent>(terrain->GetComponent("TerrainComponent"));
 		//if (terrainComponent) {
 			//terrainComponent->render(terrainComponent->terrainGBuffer);
@@ -634,7 +634,7 @@ void DeferredPass::render(const std::shared_ptr<RenderScene>& scene) {
 	glBindTexture(GL_TEXTURE_2D, gPBR->id);
 	glActiveTexture(GL_TEXTURE4);
 	glBindTexture(GL_TEXTURE_2D, gPosition->id);
-	glCheckError();
+	
 
 	//int i = 0;
 	int base = 5;// already 4 texture units occupied
@@ -645,7 +645,7 @@ void DeferredPass::render(const std::shared_ptr<RenderScene>& scene) {
 		glBindTexture(GL_TEXTURE_2D_ARRAY, scene->directionLights.at(i)->shadowTex->id);
 		lightingShader->setInt("shadow_maps[" + std::to_string(i) + "]", texture_unit_index);
 	}
-	glCheckError();
+	
 
 	base += scene->directionLights.size();
 	for (int i = 0; i < scene->pointLights.size(); ++i)
@@ -655,7 +655,7 @@ void DeferredPass::render(const std::shared_ptr<RenderScene>& scene) {
 		glBindTexture(GL_TEXTURE_CUBE_MAP, scene->pointLights.at(i)->shadowTex->id);
 		lightingShader->setInt("shadow_cubes[" + std::to_string(i) + "]", texture_unit_index);
 	}
-	glCheckError();
+	
 
 	lightingShader->setInt("gPosition", 4);
 	lightingShader->setInt("gNormal", 1);
@@ -669,7 +669,7 @@ void DeferredPass::render(const std::shared_ptr<RenderScene>& scene) {
 
 	for (unsigned int i = 0; i < 4; i++)
 		lightingShader->setFloat("cascaded_distances[" + std::to_string(i) + "]", shadow_limiter[i]);
-	glCheckError();
+	
 
 	// set uniforms
 	if (scene->main_camera) {
@@ -678,12 +678,12 @@ void DeferredPass::render(const std::shared_ptr<RenderScene>& scene) {
 		lightingShader->setFloat("far_plane", scene->main_camera->zFar);
 		//lightingShader->setInt("cascaded_levels", 5);
 	}
-	glCheckError();
+	
 
 	// render quad
 	renderQuad();
 
-	glCheckError();
+	
 	// copy renderbuffer
 	glBindFramebuffer(GL_READ_FRAMEBUFFER, gBuffer->FBO);
 	//glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
@@ -692,7 +692,7 @@ void DeferredPass::render(const std::shared_ptr<RenderScene>& scene) {
 	int height = inputManager->height;
 	glBlitFramebuffer(0, 0, width, height,
 		0, 0, width, height, GL_DEPTH_BUFFER_BIT, GL_NEAREST);
-	glCheckError();
+	
 
 	//glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	postBuffer->bindBuffer();
@@ -841,7 +841,7 @@ void RSMPass::renderGbuffer(const std::shared_ptr<RenderScene>& scene) {
 	//std::shared_ptr<Terrain>& terrain = scene->terrain;
 	//if (terrain) {
 	//	//terrain->shader->use();
-	//	glCheckError();
+	//	
 	//	//auto& terrainComponent = std::static_pointer_cast<TerrainComponent>(terrain->GetComponent("TerrainComponent"));
 	//	//if (terrainComponent) {
 	//		//terrainComponent->render(terrainComponent->terrainGBuffer);
